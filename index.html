@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EduAttend | Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+ <button class="menu-btn" id="menuBtn">☰</button>
+ <div class="title-area"><h1>Attendance Management System</h1><div id="headerDate"></div></div>
+ <div class="header-right"><span id="clock"></span><button class="settings-btn" id="quickSettings">⚙</button><div class="user-chip"><span>👤</span><b id="userName">Teacher</b></div></div>
+</header>
+
+<aside class="sidebar" id="sidebar">
+ <div class="side-logo">🎓 <b>EduAttend</b><small>Attendance Portal</small></div>
+ <div class="side-section">MAIN</div>
+ <button class="side-link active" data-page="dashboard">▣ Dashboard</button>
+ <button class="side-link teacher-only" data-page="attendance">✓ Mark Attendance</button>
+ <button class="side-link teacher-only" data-page="students">👥 Students</button>
+ <button class="side-link teacher-only" data-page="subjects">📚 Subjects</button>
+ <button class="side-link" data-page="reports">▤ Reports</button>
+ <div class="side-section">ACCOUNT</div>
+ <button class="side-link student-only" data-page="studentView">🎓 My Attendance</button>
+ <button class="side-link" data-page="profile">◉ Profile</button>
+ <button class="side-link" data-page="settings">⚙ Settings</button>
+ <button class="logout" id="logoutBtn">↪ Logout</button>
+ <button id="darkModeBtn" class="dark-mode-btn" title="Toggle Dark Mode">
+    🌙
+</button>
+</aside>
+
+<main class="main">
+<section class="page active" id="dashboard">
+ <div class="page-heading"><div><h2 id="welcomeTitle">Dashboard</h2><p id="dashboardSubtitle">Attendance overview and quick actions</p></div><button class="primary-btn teacher-only" data-go="attendance">✓ Mark Attendance</button></div>
+ <div class="stats" id="dashboardStats"></div>
+ <div class="dashboard-grid">
+  <div class="panel"><div class="panel-title"><div><h3>Today's Attendance</h3><p>Selected subject overview</p></div></div><div class="big-percentage" id="todayPercentage">0%</div><div class="large-progress"><i id="todayProgress"></i></div><div class="legend"><span><i class="dot green-dot"></i> Present</span><span><i class="dot red-dot"></i> Absent</span></div></div>
+  <div class="panel"><div class="panel-title"><div><h3>Attendance Alerts</h3><p>Students requiring attention</p></div></div><div id="alertList"></div></div>
+ </div>
+ <div class="panel quick-panel"><div class="panel-title"><div><h3>Quick Actions</h3><p>Frequently used options</p></div></div><div class="quick-actions">
+   <button class="quick-card teacher-only" data-go="attendance">✓<b>Take Attendance</b><small>Mark today's class</small></button>
+   <button class="quick-card teacher-only" data-go="students">👥<b>Manage Students</b><small>Add or remove students</small></button>
+<button class="quick-card" id="studentViewReportBtn">
+    ▤<b>View Report</b>
+    <small>Subject-wise attendance</small>
+</button>
+   <button class="quick-card" data-go="profile">◉<b>My Profile</b><small>Account information</small></button>
+ </div></div>
+</section>
+
+<section class="page screenshot-attendance" id="attendance">
+ <div class="page-heading">
+      <div><h2>Mark Attendance</h2><p id="attendanceDateText"></p></div>
+      <div class="date-picker-box">
+        <label for="attendanceDate">Attendance Date</label>
+        <input type="date" id="attendanceDate">
+      </div>
+    </div>
+ <div class="attendance-controls panel"><div><label>Select Subject *</label><select id="subjectSelect"></select></div><div class="control-buttons"><button class="present-all" id="allPresent">✓ All Present</button><button class="absent-all" id="allAbsent">✕ All Absent</button></div></div>
+ <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>#</th><th>ROLL NO.</th><th>NAME</th><th>COURSE</th><th>PRESENT</th><th>ABSENT</th><th>STATUS</th></tr></thead><tbody id="attendanceTable"></tbody></table></div><div class="save-row"><span id="saveMessage"></span><button class="primary-btn save-btn" id="saveAttendance">▣ Save Attendance</button></div></div>
+</section>
+
+<section class="page" id="students"><div class="page-heading"><div><h2>Students</h2><p>Manage student records</p></div><button class="primary-btn" id="addStudentBtn">+ Add Student</button></div>
+<div class="panel"><div class="form-grid hidden" id="studentForm"><input id="studentRoll" placeholder="Roll No."><input id="studentName" placeholder="Student Name"><input id="studentCourse" placeholder="Course"><input id="studentEmail" placeholder="Email"><button class="primary-btn" id="saveStudent">Add Student</button></div>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>ROLL NO.</th><th>NAME</th><th>COURSE</th><th>EMAIL</th><th>ACTION</th></tr></thead><tbody id="studentsTable"></tbody></table></div></div></section>
+
+<section class="page" id="subjects"><div class="page-heading"><div><h2>Subjects</h2><p>Manage subjects and classes</p></div></div>
+<div class="panel"><div class="form-grid"><input id="subjectCode" placeholder="Subject Code e.g. java123"><input id="subjectName" placeholder="Subject Name e.g. Java Programming"><button class="primary-btn" id="addSubject">+ Add Subject</button></div><div class="table-wrap"><table><thead><tr><th>#</th><th>SUBJECT CODE</th><th>SUBJECT NAME</th><th>ACTION</th></tr></thead><tbody id="subjectsTable"></tbody></table></div></div></section>
+
+<section class="page" id="reports"><div class="page-heading"><div><h2>Attendance Reports</h2><p>Student-wise attendance summary</p></div><button class="primary-btn" id="exportBtn">⬇ Export CSV</button></div>
+<div class="panel"><div class="report-filters"><select id="reportSubject"></select><input id="reportSearch" placeholder="Search student or roll number"></div><div class="table-wrap"><table><thead><tr><th>ROLL NO.</th><th>NAME</th><th>COURSE</th><th>PRESENT</th><th>ABSENT</th><th>ATTENDANCE</th><th>STATUS</th></tr></thead><tbody id="reportTable"></tbody></table></div></div></section>
+
+<section class="page" id="studentView"><div class="page-heading"><div><h2>My Attendance</h2><p>Check your attendance and shortage warning</p></div></div><div id="studentResult"></div></section>
+
+<section class="page" id="profile"><div class="page-heading"><div><h2>Profile</h2><p>Account information</p></div></div><div class="panel profile-card" id="profileContent"></div></section>
+
+<section class="page" id="settings"><div class="page-heading"><div><h2>Settings</h2><p>Customize your attendance portal</p></div></div><div class="panel settings-list">
+ <label class="setting-row"><span><b>Compact table view</b><small>Reduce table spacing on smaller screens</small></span><input type="checkbox" id="compactToggle"></label>
+ <label class="setting-row"><span><b>Show notifications</b><small>Display attendance alert messages</small></span><input type="checkbox" id="notifyToggle" checked></label>
+ <button class="danger-btn" id="resetData">Reset Demo Data</button>
+</div></section>
+</main>
+
+<footer class="footer"><div><b>EduAttend</b> — Attendance Management System</div><div>©️ 2026 EduAttend • Secure • Simple • Smart</div><div>Help &nbsp;•&nbsp; Privacy &nbsp;•&nbsp; Support</div></footer>
+<div id="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>

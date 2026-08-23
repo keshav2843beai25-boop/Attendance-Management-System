@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EduAttend | Login</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+<div class="login-shell">
+  <div class="login-brand-panel">
+    <div class="brand-mark">🎓</div>
+    <h1>EduAttend</h1>
+    <h2>Attendance Management System</h2>
+    <p>Smart attendance tracking for teachers and students.</p>
+    <div class="feature-list">
+      <div>✓ Real-time attendance records</div>
+      <div>✓ Student attendance percentage</div>
+      <div>✓ Automatic shortage warnings</div>
+      <div>✓ Reports and CSV export</div>
+    </div>
+  </div>
+  <div class="login-panel">
+    <div class="login-heading">
+      <h2>Welcome back</h2>
+      <p>Sign in to your EduAttend account</p>
+    </div>
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="student">🎓 Student</button>
+      <button class="role-tab" data-role="teacher">🧑‍🏫 Teacher</button>
+    </div>
+    <form id="loginForm">
+      <div class="field" id="studentIdField">
+        <label>Student ID / Roll No.</label>
+        <input id="studentId" placeholder="e.g. 2510992893" autocomplete="username">
+      </div>
+      <div class="field" id="emailField">
+        <label>Email address</label>
+        <input id="studentEmail" type="email" placeholder="student@example.com">
+      </div>
+      <div class="field hidden" id="teacherIdField">
+        <label>Teacher ID</label>
+        <input id="teacherId" placeholder="e.g. T001">
+      </div>
+      <div class="field hidden" id="passwordField">
+        <label>Password</label>
+        <input id="teacherPassword" type="password" placeholder="Enter password">
+      </div>
+      <label class="remember"><input type="checkbox" id="remember"> Remember me</label>
+      <button class="login-btn" type="submit">↪ <span id="loginText">Sign in as Student</span></button>
+    </form>
+    <div class="demo-box" id="demoBox">
+      <b>Demo accounts</b>
+      <span>Student: <strong>2510992893</strong> + <strong>bharat@example.com</strong></span>
+      <span>Teacher: <strong>T001</strong> + <strong>teacher123</strong></span>
+    </div>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+<script>
+let role="student";
+const tabs=document.querySelectorAll(".role-tab");
+tabs.forEach(t=>t.onclick=()=>{
+ role=t.dataset.role;
+ tabs.forEach(x=>x.classList.toggle("active",x===t));
+ document.getElementById("studentIdField").classList.toggle("hidden",role!=="student");
+ document.getElementById("emailField").classList.toggle("hidden",role!=="student");
+ document.getElementById("teacherIdField").classList.toggle("hidden",role!=="teacher");
+ document.getElementById("passwordField").classList.toggle("hidden",role!=="teacher");
+ document.getElementById("loginText").textContent=role==="student"?"Sign in as Student":"Sign in as Teacher";
+ document.getElementById("loginError").textContent="";
+});
+document.getElementById("loginForm").onsubmit=e=>{
+ e.preventDefault();
+ let error="";
+ if(role==="teacher"){
+   if(document.getElementById("teacherId").value.trim()==="T001" && document.getElementById("teacherPassword").value==="teacher123"){
+     sessionStorage.setItem("edu_role","teacher"); sessionStorage.removeItem("edu_student");
+     location.href="index.html"; return;
+   }
+   error="Invalid teacher ID or password. Demo: T001 / teacher123";
+ }else{
+   const id=document.getElementById("studentId").value.trim();
+   const email=document.getElementById("studentEmail").value.trim().toLowerCase();
+   const students=JSON.parse(localStorage.getItem("ams_data_v4")||"null");
+   const list=students?.students||[{roll:"2510992893",email:"bharat@example.com"}];
+   const s=list.find(x=>x.roll===id);
+   if(s && (!s.email || s.email.toLowerCase()===email)){
+     sessionStorage.setItem("edu_role","student"); sessionStorage.setItem("edu_student",id);
+     location.href="index.html"; return;
+   }
+   error="Student ID or email is incorrect.";
+ }
+ document.getElementById("loginError").textContent=error;
+};
+</script>
+</body>
+</html>
