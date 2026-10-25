@@ -1,1256 +1,575 @@
-const KEY = "ams_data_v4";
+/* EduAttend Attendance Management System
+   JavaScript-only update: keeps the existing HTML and CSS interface unchanged.
+   Concepts demonstrated: functions, objects, arrays, DOM events, validation,
+   localStorage, date handling, filtering, calculations, and CSV export. */
+"use strict";
 
-const defaults = {
-    students: [
-        {
-            roll: "2510992893",
-            name: "Bharat",
-            course: "CSE Ai & Ml",
-            email: "bharat@example.com"
-        },
-        {
-            roll: "2510993153",
-            name: "Harshit Thakur",
-            course: "CSE Ai & Ml",
-            email: "harshit@example.com"
-        },
-        {
-            roll: "2510993154",
-            name: "Mokshika",
-            course: "CSE Ai & Ml",
-            email: "mokshika@example.com"
-        },
-        {
-            roll: "2510993155",
-            name: "Antra Thakur",
-            course: "CSE Ai & Ml",
-            email: "antra@example.com"
-        },
-        {
-            roll: "2510993157",
-            name: "Dhanesh",
-            course: "CSE Ai & Ml",
-            email: "dhanesh@example.com"
-        },
-        {
-            roll: "2510993244",
-            name: "Prikshit Rana",
-            course: "CSE Ai & Ml",
-            email: "prikshit@example.com"
-        }
-    ],
-
-    subjects: [
-        {
-            code: "java123",
-            name: "Java Programming"
-        },
-        {
-            code: "web123",
-            name: "Web Development"
-        },
-        {
-            code: "dbms123",
-            name: "Database Management"
-        }
-    ],
-
-    attendance: {}
+const STORAGE_KEY = "ams_data_v4";
+const DEFAULT_DATA = {
+  students: [
+    { roll: "2510992893", name: "Bharat", course: "CSE Ai & Ml", email: "bharat@example.com" },
+    { roll: "2510993153", name: "Harshit Thakur", course: "CSE Ai & Ml", email: "harshit@example.com" },
+    { roll: "2510993154", name: "Mokshika", course: "CSE Ai & Ml", email: "mokshika@example.com" },
+    { roll: "2510993155", name: "Antra Thakur", course: "CSE Ai & Ml", email: "antra@example.com" },
+    { roll: "2510993157", name: "Dhanesh", course: "CSE Ai & Ml", email: "dhanesh@example.com" },
+    { roll: "2510993244", name: "Prikshit Rana", course: "CSE Ai & Ml", email: "prikshit@example.com" }
+  ],
+  subjects: [
+    { code: "java123", name: "Java Programming" },
+    { code: "web123", name: "Web Development" },
+    { code: "dbms123", name: "Database Management" }
+  ],
+  attendance: {}
 };
 
-let data =
-    JSON.parse(localStorage.getItem(KEY) || "null") ||
-    structuredClone(defaults);
+const $ = (id) => document.getElementById(id);
+const role = sessionStorage.getItem("edu_role") || "teacher";
+const studentRoll = sessionStorage.getItem("edu_student") || "";
+let selectedAttendanceDate = localDate();
+let data = loadData();
 
-localStorage.setItem(KEY, JSON.stringify(data));
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
 
-const $ = id => document.getElementById(id);
-
-const studentRoll = sessionStorage.getItem("edu_student");
-
-const role =
-    sessionStorage.getItem("edu_role") ||
-    (studentRoll ? "student" : "teacher");
+function loadData() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return clone(DEFAULT_DATA);
+    const parsed = JSON.parse(stored);
+    if (!parsed || !Array.isArray(parsed.students) ||
+        !Array.isArray(parsed.subjects) || !parsed.attendance ||
+        typeof parsed.attendance !== "object") {
+      return clone(DEFAULT_DATA);
+    }
+    return parsed;
+  } catch (error) {
+    console.warn("Could not load saved EduAttend data.", error);
+    return clone(DEFAULT_DATA);
+  }
+}
 
 function save() {
-    localStorage.setItem(KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    console.error("Could not save data.", error);
+    toast("Unable to save data in this browser.", "error");
+    return false;
+  }
 }
 
-function esc(v) {
-    return String(v ?? "").replace(/[&<>"']/g, m => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-    }[m]));
+function localDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function today() {
-    return new Date().toISOString().slice(0, 10);
+function dateText(value = localDate()) {
+  return formatAttendanceDate(value);
 }
 
-function dateText() {
-    return new Date().toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "2-digit",
-        year: "numeric"
-    });
+function formatAttendanceDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "2-digit", year: "numeric"
+  });
 }
 
-function formatAttendanceDate(v) {
-    if (!v) return dateText();
-
-    const d = new Date(v + "T00:00:00");
-
-    return d.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "2-digit",
-        year: "numeric"
-    });
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+  })[character]);
 }
 
-let selectedAttendanceDate = today();
+function toast(message, type = "success") {
+  const container = $("toast");
+  if (!container || $("notifyToggle")?.checked === false) return;
+  const item = document.createElement("div");
+  item.className = `toast ${type}`;
+  item.textContent = message;
+  container.appendChild(item);
+  window.setTimeout(() => item.remove(), 2600);
+}
 
 function attendanceDate() {
-    return $("attendanceDate")?.value ||
-        selectedAttendanceDate ||
-        today();
+  return $("attendanceDate")?.value || selectedAttendanceDate || localDate();
 }
 
-function key(sub, roll) {
-    return `${attendanceDate()}_${sub}_${roll}`;
+function attendanceKey(subjectCode, roll, date = attendanceDate()) {
+  return `${date}_${subjectCode}_${roll}`;
 }
 
-function toast(msg, type = "success") {
-    const x = document.createElement("div");
-
-    x.className = "toast " + type;
-    x.textContent = msg;
-
-    if ($("toast")) {
-        $("toast").appendChild(x);
-        setTimeout(() => x.remove(), 2500);
-    }
+function getSubject() {
+  const index = Number($("subjectSelect")?.value || 0);
+  return data.subjects[index] || null;
 }
 
-function calc(roll) {
-    let p = 0;
-    let a = 0;
+function calculateAttendance(roll, subjectCode = "") {
+  let present = 0;
+  let absent = 0;
 
-    Object.keys(data.attendance).forEach(k => {
-        if (k.endsWith("_" + roll)) {
-            if (data.attendance[k] === "present") {
-                p++;
-            } else if (data.attendance[k] === "absent") {
-                a++;
-            }
-        }
-    });
+  Object.entries(data.attendance).forEach(([recordKey, status]) => {
+    const parts = recordKey.split("_");
+    const recordRoll = parts.pop();
+    const recordSubject = parts.slice(1).join("_");
+    if (recordRoll !== String(roll)) return;
+    if (subjectCode && recordSubject !== subjectCode) return;
+    if (status === "present") present++;
+    if (status === "absent") absent++;
+  });
 
-    const t = p + a;
-
-    return {
-        present: p,
-        absent: a,
-        total: t,
-        pct: t ? Math.round((p / t) * 100) : 0
-    };
+  const total = present + absent;
+  return {
+    present,
+    absent,
+    total,
+    pct: total ? Math.round((present / total) * 100) : 0
+  };
 }
 
-function subject() {
-    return data.subjects[Number($("subjectSelect")?.value) || 0];
+function stats(items) {
+  return items.map((item) => `
+    <div class="stat-card">
+      <div class="stat-icon ${item[3]}">${item[0]}</div>
+      <div><span>${esc(item[1])}</span><strong>${esc(item[2])}</strong></div>
+    </div>`).join("");
 }
 
-function statusHTML(s) {
-    return `
-        <span class="status-dot ${
-            s === "present" ? "present-dot" : "absent-dot"
-        }"></span>
-        ${s === "present" ? "Present" : "Absent"}
-    `;
+function statusHTML(status) {
+  if (!status) return '<span class="status-dot"></span>Not marked';
+  const isPresent = status === "present";
+  return `<span class="status-dot ${isPresent ? "present-dot" : "absent-dot"}"></span>${isPresent ? "Present" : "Absent"}`;
 }
 
-function nav() {
+function show(pageId) {
+  const page = $(pageId);
+  if (!page) return;
+  document.querySelectorAll(".page").forEach((item) => item.classList.remove("active"));
+  page.classList.add("active");
+  document.querySelectorAll(".side-link").forEach((item) => {
+    item.classList.toggle("active", item.dataset.page === pageId);
+  });
+  $("sidebar")?.classList.remove("open");
 
-    document.querySelectorAll(".side-link").forEach(b => {
-        b.onclick = () => show(b.dataset.page);
-    });
-
-    document.querySelectorAll("[data-go]").forEach(b => {
-        b.onclick = () => show(b.dataset.go);
-    });
-
-    if ($("menuBtn")) {
-        $("menuBtn").onclick = () => {
-            $("sidebar")?.classList.toggle("open");
-        };
-    }
-
-    if ($("logoutBtn")) {
-        $("logoutBtn").onclick = () => {
-            sessionStorage.clear();
-            location.href = "login.html";
-        };
-    }
-
-    if ($("quickSettings")) {
-        $("quickSettings").onclick = () => show("settings");
-    }
+  const pageRenderers = {
+    dashboard: renderDashboard,
+    attendance: renderAttendance,
+    students: renderStudents,
+    subjects: renderSubjects,
+    reports: renderReports,
+    studentView: renderStudentView,
+    profile: renderProfile
+  };
+  if (pageRenderers[pageId]) pageRenderers[pageId]();
 }
-const studentReportBtn = $("studentViewReportBtn");
 
-if (studentReportBtn) {
-    studentReportBtn.onclick = () => {
-        show("studentView");
-    };
-}
-function show(id) {
-
-    if (
-        role === "student" &&
-        ["attendance", "students", "subjects", "reports"].includes(id)
-    ) {
-        id = "dashboard";
-    }
-
-    document.querySelectorAll(".page").forEach(x => {
-        x.classList.remove("active");
-    });
-    document.querySelectorAll(".page").forEach(x => {
-        x.classList.remove("active");
-    });
-
-    if ($(id)) {
-        $(id).classList.add("active");
-    }
-
-    document.querySelectorAll(".side-link").forEach(x => {
-        x.classList.toggle(
-            "active",
-            x.dataset.page === id
-        );
-    });
-
-    if (id === "attendance") renderAttendance();
-    if (id === "students") renderStudents();
-    if (id === "subjects") renderSubjects();
-    if (id === "reports") renderReports();
-    if (id === "dashboard") renderDashboard();
-    if (id === "studentView") renderStudentView();
-    if (id === "profile") renderProfile();
+function setupNavigation() {
+  document.querySelectorAll(".side-link").forEach((button) => {
+    button.addEventListener("click", () => show(button.dataset.page));
+  });
+  document.querySelectorAll("[data-go]").forEach((button) => {
+    button.addEventListener("click", () => show(button.dataset.go));
+  });
+  $("menuBtn")?.addEventListener("click", () => $("sidebar")?.classList.toggle("open"));
+  $("logoutBtn")?.addEventListener("click", () => {
+    sessionStorage.removeItem("edu_role");
+    sessionStorage.removeItem("edu_student");
+    window.location.href = "login.html";
+  });
+  $("quickSettings")?.addEventListener("click", () => show("settings"));
 }
 
 function setupRole() {
-
-    if (role === "student") {
-
-        // Remove everything meant only for teachers
-        document.querySelectorAll(".teacher-only").forEach(x => {
-            x.remove();
-        });
-
-        // Show student-only items
-        document.querySelectorAll(".student-only").forEach(x => {
-            x.classList.remove("hidden");
-        });
-
-        // Extra protection: remove Reports page
-        const reportsLink =
-            document.querySelector('[data-page="reports"]');
-
-        if (reportsLink) {
-            reportsLink.remove();
-        }
-
-        // Find ONLY logged-in student
-        const s = data.students.find(
-            x => x.roll === studentRoll
-        );
-
-        if ($("userName")) {
-            $("userName").textContent =
-                s?.name || "Student";
-        }
-
-        if ($("welcomeTitle")) {
-            $("welcomeTitle").textContent =
-                "Student Dashboard";
-        }
-
-        if ($("dashboardSubtitle")) {
-            $("dashboardSubtitle").textContent =
-                "Your attendance overview and alerts";
-        }
-
-    } else {
-
-        // Teacher
-        document.querySelectorAll(".student-only").forEach(x => {
-            x.remove();
-        });
-
-        if ($("userName")) {
-            $("userName").textContent = "Teacher";
-        }
+  if (role === "student") {
+    document.querySelectorAll(".teacher-only").forEach((element) => element.remove());
+    document.querySelectorAll(".student-only").forEach((element) => element.classList.remove("hidden"));
+    const student = data.students.find((item) => item.roll === studentRoll);
+    if (!student) {
+      toast("Student account not found. Please sign in again.", "error");
+      window.setTimeout(() => { window.location.href = "login.html"; }, 500);
+      return;
     }
+    $("userName").textContent = student.name;
+    $("welcomeTitle").textContent = "Student Dashboard";
+    $("dashboardSubtitle").textContent = "Your attendance overview and alerts";
+  } else {
+    document.querySelectorAll(".student-only").forEach((element) => element.remove());
+    if ($("userName")) $("userName").textContent = "Teacher";
+  }
 }
+
 function renderDashboard() {
+  if (!$("dashboardStats")) return;
 
-    if (role === "student") {
+  if (role === "student") {
+    const student = data.students.find((item) => item.roll === studentRoll);
+    const result = student ? calculateAttendance(student.roll) : { present: 0, absent: 0, total: 0, pct: 0 };
+    $("dashboardStats").innerHTML = stats([
+      ["✓", "Present", result.present, "green"],
+      ["✕", "Absent", result.absent, "red"],
+      ["▣", "Total Classes", result.total, "blue"],
+      ["⚠", "Attendance", `${result.pct}%`, "orange"]
+    ]);
+    $("todayPercentage").textContent = `${result.pct}%`;
+    $("todayProgress").style.width = `${result.pct}%`;
+    $("alertList").innerHTML = result.total && result.pct < 75
+      ? `<div class="alert-row"><div><b>⚠ Short Attendance Warning</b><small>Your attendance is below 75%.</small></div><span class="alert-pct">${result.pct}%</span></div>`
+      : '<div class="alert-row"><div><b>✓ Attendance overview</b><small>Keep attending classes regularly.</small></div></div>';
+    return;
+  }
 
-        const s = data.students.find(
-            x => x.roll === studentRoll
-        );
+  const subject = getSubject();
+  let present = 0;
+  let absent = 0;
+  let unmarked = 0;
+  data.students.forEach((student) => {
+    const status = subject ? data.attendance[attendanceKey(subject.code, student.roll)] : "";
+    if (status === "present") present++;
+    else if (status === "absent") absent++;
+    else unmarked++;
+  });
+  const marked = present + absent;
+  const percentage = marked ? Math.round((present / marked) * 100) : 0;
+  const shortage = data.students.filter((student) => {
+    const result = calculateAttendance(student.roll);
+    return result.total > 0 && result.pct < 75;
+  }).length;
 
-        const x = s
-            ? calc(s.roll)
-            : {
-                present: 0,
-                absent: 0,
-                total: 0,
-                pct: 0
-            };
-
-        if ($("dashboardStats")) {
-            $("dashboardStats").innerHTML = stats([
-                ["✓", "Present", x.present, "green"],
-                ["✕", "Absent", x.absent, "red"],
-                ["▣", "Total Classes", x.total, "blue"],
-                ["⚠", "Attendance", x.pct + "%", "orange"]
-            ]);
-        }
-
-        if ($("todayPercentage")) {
-            $("todayPercentage").textContent = x.pct + "%";
-        }
-
-        if ($("todayProgress")) {
-            $("todayProgress").style.width = x.pct + "%";
-        }
-
-        if ($("alertList")) {
-            $("alertList").innerHTML =
-                x.pct < 75
-                    ? `
-                    <div class="alert-row">
-                        <div>
-                            <b>⚠ Short Attendance Warning</b>
-                            <small>Your attendance is below 75%.</small>
-                        </div>
-                        <span class="alert-pct">${x.pct}%</span>
-                    </div>
-                    `
-                    : `
-                    <div class="alert-row">
-                        <div>
-                            <b>✓ Attendance is good</b>
-                            <small>Keep attending classes regularly.</small>
-                        </div>
-                    </div>
-                    `;
-        }
-
-        return;
-    }
-
-    const sub = data.subjects[0];
-
-    let p = 0;
-    let a = 0;
-
-    if (sub) {
-        data.students.forEach(s => {
-
-            const status =
-                data.attendance[
-                    key(sub.code, s.roll)
-                ];
-
-            if (status === "absent") {
-                a++;
-            } else {
-                p++;
-            }
-        });
-    }
-
-    const pct = data.students.length
-        ? Math.round((p / data.students.length) * 100)
-        : 0;
-
-    if ($("dashboardStats")) {
-        $("dashboardStats").innerHTML = stats([
-            ["👥", "Total Students", data.students.length, "blue"],
-            ["✓", "Present Today", p, "green"],
-            ["✕", "Absent Today", a, "red"],
-            [
-                "⚠",
-                "Below 75%",
-                data.students.filter(s => {
-                    const x = calc(s.roll);
-                    return x.total && x.pct < 75;
-                }).length,
-                "orange"
-            ]
-        ]);
-    }
-
-    if ($("todayPercentage")) {
-        $("todayPercentage").textContent = pct + "%";
-    }
-
-    if ($("todayProgress")) {
-        $("todayProgress").style.width = pct + "%";
-    }
-
-    const alerts = data.students
-        .map(s => ({
-            s,
-            x: calc(s.roll)
-        }))
-        .filter(z => z.x.total && z.x.pct < 75);
-
-    if ($("alertList")) {
-        $("alertList").innerHTML = alerts.length
-            ? alerts.map(z => `
-                <div class="alert-row">
-                    <div>
-                        <b>${esc(z.s.name)}</b>
-                        <small>${esc(z.s.roll)}</small>
-                    </div>
-                    <span class="alert-pct">${z.x.pct}%</span>
-                </div>
-            `).join("")
-            : `
-                <div class="alert-row">
-                    <div>
-                        <b>✓ No shortage students</b>
-                        <small>Everyone is maintaining attendance.</small>
-                    </div>
-                </div>
-            `;
-    }
-}
-
-function stats(arr) {
-
-    return arr.map(x => `
-        <div class="stat-card">
-            <div class="stat-icon ${x[3]}">${x[0]}</div>
-            <div>
-                <span>${x[1]}</span>
-                <strong>${x[2]}</strong>
-            </div>
-        </div>
-    `).join("");
+  $("dashboardStats").innerHTML = stats([
+    ["👥", "Total Students", data.students.length, "blue"],
+    ["✓", "Present Today", present, "green"],
+    ["✕", "Absent Today", absent, "red"],
+    ["⚠", "Below 75%", shortage, "orange"]
+  ]);
+  $("todayPercentage").textContent = `${percentage}%`;
+  $("todayProgress").style.width = `${percentage}%`;
+  $("alertList").innerHTML = `
+    <div class="alert-row"><div><b>${esc(subject?.name || "No subject selected")}</b>
+    <small>${esc(dateText(attendanceDate()))}: ${marked} marked, ${unmarked} not marked</small></div>
+    <span class="alert-pct">${percentage}%</span></div>
+    ${shortage ? `<div class="alert-row"><div><b>⚠ ${shortage} student(s) below 75%</b><small>Open reports to review attendance.</small></div></div>` : ""}`;
 }
 
 function renderSubjects() {
+  if (!$("subjectSelect")) return;
+  const previousSubject = $("subjectSelect").value;
+  $("subjectSelect").innerHTML = data.subjects.map((subject, index) =>
+    `<option value="${index}">${esc(subject.name)} — ${esc(subject.code)}</option>`
+  ).join("");
+  if (data.subjects[Number(previousSubject)]) $("subjectSelect").value = previousSubject;
 
-    if ($("subjectSelect")) {
-        $("subjectSelect").innerHTML =
-            data.subjects.map((s, i) => `
-                <option value="${i}">
-                    ${esc(s.name)} — ${esc(s.code)}
-                </option>
-            `).join("");
-    }
+  const previousReport = $("reportSubject").value;
+  $("reportSubject").innerHTML = '<option value="">All subjects</option>' +
+    data.subjects.map((subject) =>
+      `<option value="${esc(subject.code)}">${esc(subject.name)} — ${esc(subject.code)}</option>`
+    ).join("");
+  if (data.subjects.some((subject) => subject.code === previousReport)) {
+    $("reportSubject").value = previousReport;
+  }
 
-    if ($("reportSubject")) {
-        $("reportSubject").innerHTML =
-            data.subjects.map((s, i) => `
-                <option value="${i}">
-                    ${esc(s.name)}
-                </option>
-            `).join("");
-    }
+  $("subjectsTable").innerHTML = data.subjects.length
+    ? data.subjects.map((subject, index) => `
+      <tr><td>${index + 1}</td><td>${esc(subject.code)}</td><td>${esc(subject.name)}</td>
+      <td><button class="absent-all" type="button" data-delete-subject="${index}">Delete</button></td></tr>`
+    ).join("")
+    : '<tr><td colspan="4">No subjects added yet.</td></tr>';
 
-    if ($("subjectsTable")) {
-        $("subjectsTable").innerHTML =
-            data.subjects.map((s, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${esc(s.code)}</td>
-                    <td>${esc(s.name)}</td>
-                    <td>
-                        <button
-                            class="absent-all"
-                            onclick="delSub(${i})">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-            `).join("");
-    }
+  document.querySelectorAll("[data-delete-subject]").forEach((button) => {
+    button.addEventListener("click", () => deleteSubject(Number(button.dataset.deleteSubject)));
+  });
 }
 
 function renderAttendance() {
+  if (!$("attendanceTable")) return;
+  renderSubjects();
+  if ($("attendanceDate") && !$("attendanceDate").value) $("attendanceDate").value = selectedAttendanceDate;
+  selectedAttendanceDate = attendanceDate();
+  if ($("attendanceDateText")) $("attendanceDateText").textContent = dateText(selectedAttendanceDate);
 
-    renderSubjects();
+  const subject = getSubject();
+  if (!subject) {
+    $("attendanceTable").innerHTML = '<tr><td colspan="7">Add a subject before marking attendance.</td></tr>';
+    return;
+  }
 
-    if ($("attendanceDate") &&
-        !$("attendanceDate").value) {
+  $("attendanceTable").innerHTML = data.students.length
+    ? data.students.map((student, index) => {
+      const status = data.attendance[attendanceKey(subject.code, student.roll)] || "";
+      return `<tr>
+        <td>${index + 1}</td><td>${esc(student.roll)}</td><td>${esc(student.name)}</td><td>${esc(student.course)}</td>
+        <td><input class="att-radio" type="radio" name="attendance-${index}" value="present"
+          aria-label="Mark ${esc(student.name)} present" data-roll="${esc(student.roll)}" ${status === "present" ? "checked" : ""}></td>
+        <td><input class="att-radio abs" type="radio" name="attendance-${index}" value="absent"
+          aria-label="Mark ${esc(student.name)} absent" data-roll="${esc(student.roll)}" ${status === "absent" ? "checked" : ""}></td>
+        <td class="status-cell">${statusHTML(status)}</td></tr>`;
+    }).join("")
+    : '<tr><td colspan="7">No students added yet.</td></tr>';
 
-        $("attendanceDate").value =
-            selectedAttendanceDate;
-    }
-
-    if ($("attendanceDate")) {
-        selectedAttendanceDate =
-            $("attendanceDate").value || today();
-    }
-
-    if ($("attendanceDateText")) {
-        $("attendanceDateText").textContent =
-            formatAttendanceDate(selectedAttendanceDate);
-    }
-
-    const s = subject();
-
-    if (!s || !$("attendanceTable")) return;
-
-    $("attendanceTable").innerHTML =
-        data.students.map((x, i) => {
-
-            const st =
-                data.attendance[
-                    key(s.code, x.roll)
-                ] || "present";
-
-            return `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${esc(x.roll)}</td>
-                    <td>${esc(x.name)}</td>
-                    <td>${esc(x.course)}</td>
-
-                    <td>
-                        <input
-                            class="att-radio"
-                            type="radio"
-                            name="r${i}"
-                            ${st === "present" ? "checked" : ""}
-                            onclick="setAtt('${x.roll}', 'present')">
-                    </td>
-
-                    <td>
-                        <input
-                            class="att-radio abs"
-                            type="radio"
-                            name="r${i}"
-                            ${st === "absent" ? "checked" : ""}
-                            onclick="setAtt('${x.roll}', 'absent')">
-                    </td>
-
-                    <td class="status-cell">
-                        ${statusHTML(st)}
-                    </td>
-                </tr>
-            `;
-        }).join("");
+  document.querySelectorAll("#attendanceTable input[type=radio]").forEach((input) => {
+    input.addEventListener("change", () => setAttendance(input.dataset.roll, input.value));
+  });
+  renderDashboard();
 }
 
-if ($("subjectSelect")) {
-    $("subjectSelect").onchange = renderAttendance;
+function setAttendance(roll, status) {
+  const subject = getSubject();
+  if (!subject) return;
+  data.attendance[attendanceKey(subject.code, roll)] = status;
+  save();
+  renderAttendance();
+  renderReports();
 }
 
-if ($("attendanceDate")) {
-
-    $("attendanceDate").addEventListener(
-        "change",
-        () => {
-
-            selectedAttendanceDate =
-                $("attendanceDate").value || today();
-
-            renderAttendance();
-
-            if ($("saveMessage")) {
-                $("saveMessage").textContent = "";
-            }
-        }
-    );
-}
-
-if ($("allPresent")) {
-    $("allPresent").onclick = () => bulk("present");
-}
-
-if ($("allAbsent")) {
-    $("allAbsent").onclick = () => bulk("absent");
-}
-
-if ($("saveAttendance")) {
-
-    $("saveAttendance").onclick = () => {
-
-        save();
-
-        const msg =
-            `✓ Attendance saved for ${
-                formatAttendanceDate(attendanceDate())
-            }`;
-
-        if ($("saveMessage")) {
-            $("saveMessage").textContent = msg;
-        }
-
-        toast(
-            `Attendance saved for ${
-                formatAttendanceDate(attendanceDate())
-            }`
-        );
-
-        setTimeout(() => {
-
-            if ($("saveMessage")) {
-                $("saveMessage").textContent = "";
-            }
-
-        }, 2500);
-    };
-}
-
-function setAtt(r, s) {
-
-    const sub = subject();
-
-    if (!sub) return;
-
-    data.attendance[
-        key(sub.code, r)
-    ] = s;
-
-    save();
-
-    renderAttendance();
-    renderDashboard();
-}
-
-function bulk(s) {
-
-    const sub = subject();
-
-    if (!sub) return;
-
-    data.students.forEach(x => {
-        data.attendance[
-            key(sub.code, x.roll)
-        ] = s;
-    });
-
-    save();
-    renderAttendance();
-
-    toast(
-        s === "present"
-            ? "All students marked Present"
-            : "All students marked Absent"
-    );
+function bulk(status) {
+  const subject = getSubject();
+  if (!subject) return toast("Please add a subject first.", "error");
+  data.students.forEach((student) => {
+    data.attendance[attendanceKey(subject.code, student.roll)] = status;
+  });
+  save();
+  renderAttendance();
+  renderDashboard();
+  renderReports();
+  toast(status === "present" ? "All students marked Present" : "All students marked Absent");
 }
 
 function renderStudents() {
+  if (!$("studentsTable")) return;
+  $("studentsTable").innerHTML = data.students.length
+    ? data.students.map((student, index) => `
+      <tr><td>${index + 1}</td><td>${esc(student.roll)}</td><td>${esc(student.name)}</td>
+      <td>${esc(student.course)}</td><td>${esc(student.email)}</td>
+      <td><button class="absent-all" type="button" data-delete-student="${index}">Delete</button></td></tr>`
+    ).join("")
+    : '<tr><td colspan="6">No students added yet.</td></tr>';
 
-    if (!$("studentsTable")) return;
+  document.querySelectorAll("[data-delete-student]").forEach((button) => {
+    button.addEventListener("click", () => deleteStudent(Number(button.dataset.deleteStudent)));
+  });
+}
 
-    $("studentsTable").innerHTML =
-        data.students.map((s, i) => `
-            <tr>
-                <td>${i + 1}</td>
-                <td>${esc(s.roll)}</td>
-                <td>${esc(s.name)}</td>
-                <td>${esc(s.course)}</td>
-                <td>${esc(s.email)}</td>
-                <td>
-                    <button
-                        class="absent-all"
-                        onclick="delStudent(${i})">
-                        Delete
-                    </button>
-                </td>
-            </tr>
-        `).join("");
+function deleteStudent(index) {
+  const student = data.students[index];
+  if (!student || !window.confirm(`Delete ${student.name} and their attendance records?`)) return;
+  data.students.splice(index, 1);
+  Object.keys(data.attendance).forEach((key) => {
+    if (key.endsWith(`_${student.roll}`)) delete data.attendance[key];
+  });
+  save();
+  renderStudents();
+  renderAttendance();
+  renderDashboard();
+  renderReports();
+  toast("Student deleted.");
+}
+
+function deleteSubject(index) {
+  const subject = data.subjects[index];
+  if (!subject || !window.confirm(`Delete subject "${subject.name}" and its attendance records?`)) return;
+  data.subjects.splice(index, 1);
+  Object.keys(data.attendance).forEach((key) => {
+    if (key.split("_")[1] === subject.code) delete data.attendance[key];
+  });
+  save();
+  renderSubjects();
+  renderAttendance();
+  renderDashboard();
+  renderReports();
+  toast("Subject deleted.");
 }
 
 function renderReports() {
+  if (!$("reportTable")) return;
+  const query = ($("reportSearch")?.value || "").trim().toLowerCase();
+  const selectedCode = $("reportSubject")?.value || "";
+  const students = data.students.filter((student) =>
+    `${student.name} ${student.roll} ${student.course}`.toLowerCase().includes(query)
+  );
 
-    // Students are NOT allowed to access reports
-    if (role === "student") {
-
-        if ($("reportTable")) {
-            $("reportTable").innerHTML = "";
-        }
-
-        return;
-    }
-
-    if (!$("reportTable")) return;
-
-    const q =
-        ($("reportSearch")?.value || "").toLowerCase();
-
-    $("reportTable").innerHTML =
-        data.students
-            .filter(s =>
-                (s.name + s.roll)
-                    .toLowerCase()
-                    .includes(q)
-            )
-            .map(s => {
-
-                const x = calc(s.roll);
-
-                return `
-                    <tr>
-                        <td>${esc(s.roll)}</td>
-                        <td>${esc(s.name)}</td>
-                        <td>${esc(s.course)}</td>
-                        <td>${x.present}</td>
-                        <td>${x.absent}</td>
-                        <td><b>${x.pct}%</b></td>
-                        <td>
-                            <span class="status-dot ${
-                                x.pct < 75
-                                    ? "absent-dot"
-                                    : "present-dot"
-                            }"></span>
-
-                            ${
-                                x.pct < 75
-                                    ? "Short Attendance"
-                                    : "Good"
-                            }
-                        </td>
-                    </tr>
-                `;
-
-            }).join("");
+  $("reportTable").innerHTML = students.length
+    ? students.map((student) => {
+      const result = calculateAttendance(student.roll, selectedCode);
+      const label = result.total === 0 ? "No data" : result.pct < 75 ? "Short Attendance" : "Good";
+      const dotClass = result.total && result.pct < 75 ? "absent-dot" : "present-dot";
+      return `<tr><td>${esc(student.roll)}</td><td>${esc(student.name)}</td><td>${esc(student.course)}</td>
+        <td>${result.present}</td><td>${result.absent}</td><td><b>${result.pct}%</b></td>
+        <td><span class="status-dot ${dotClass}"></span>${label}</td></tr>`;
+    }).join("")
+    : '<tr><td colspan="7">No students match your search.</td></tr>';
 }
 
 function renderStudentView() {
-
-    const s = data.students.find(
-        x => x.roll === studentRoll
-    );
-
-    if (!s || !$("studentResult")) return;
-
-    $("studentResult").innerHTML =
-        studentCard(s);
+  const student = data.students.find((item) => item.roll === studentRoll);
+  if ($("studentResult")) {
+    $("studentResult").innerHTML = student
+      ? studentCard(student)
+      : '<div class="panel">Student record not found. Please sign in again.</div>';
+  }
 }
 
-function getSubjectAttendance(subjectCode, roll) {
-
-    let present = 0;
-    let absent = 0;
-
-    Object.keys(data.attendance).forEach(k => {
-
-        // Attendance key format:
-        // date_subjectCode_roll
-
-        const parts = k.split("_");
-
-        if (
-            parts.length >= 3 &&
-            parts[1] === subjectCode &&
-            parts.slice(2).join("_") === roll
-        ) {
-
-            if (data.attendance[k] === "present") {
-                present++;
-            }
-
-            if (data.attendance[k] === "absent") {
-                absent++;
-            }
-        }
-    });
-
-    const total = present + absent;
-
-    return {
-        present: present,
-        absent: absent,
-        total: total,
-        pct: total
-            ? Math.round((present / total) * 100)
-            : 0
-    };
-}
-
-
-function studentCard(s) {
-
-    const overall = calc(s.roll);
-
-    let subjectRows = "";
-
-    data.subjects.forEach((sub, index) => {
-
-        const a = getSubjectAttendance(
-            sub.code,
-            s.roll
-        );
-
-        let status;
-
-        if (a.total === 0) {
-            status = "No Attendance";
-        }
-        else if (a.pct < 75) {
-            status = "Short Attendance";
-        }
-        else {
-            status = "Good";
-        }
-
-        subjectRows += `
-            <tr>
-
-                <td>${index + 1}</td>
-
-                <td>
-                    ${esc(sub.code)}
-                </td>
-
-                <td>
-                    ${esc(sub.name)}
-                </td>
-
-                <td>
-                    ${a.present}
-                </td>
-
-                <td>
-                    ${a.absent}
-                </td>
-
-                <td>
-                    <b>${a.pct}%</b>
-                </td>
-
-                <td>
-                    ${status}
-                </td>
-
-            </tr>
-        `;
-    });
-
-
-    return `
-
-        <div class="panel student-result-card">
-
-            <div class="student-profile">
-
-                <div>
-
-                    <h3>
-                        ${esc(s.name)}
-                    </h3>
-
-                    <p>
-                        ${esc(s.roll)} •
-                        ${esc(s.course)}
-                    </p>
-
-                </div>
-
-                <div class="attendance-circle">
-                    ${overall.pct}%
-                </div>
-
-            </div>
-
-
-            <div class="${
-                overall.pct < 75
-                    ? "warning-box"
-                    : "good-box"
-            }">
-
-                ${
-                    overall.pct < 75
-                        ? "⚠ Warning: Your attendance is below 75%."
-                        : "✓ Good attendance. Keep it up!"
-                }
-
-            </div>
-
-
-            ${stats([
-
-                ["✓", "Present",
-                    overall.present, "green"],
-
-                ["✕", "Absent",
-                    overall.absent, "red"],
-
-                ["▣", "Total Classes",
-                    overall.total, "blue"],
-
-                ["%", "Overall Attendance",
-                    overall.pct + "%", "orange"]
-
-            ])}
-
-
-            <div class="subject-report">
-
-                <h3>
-                    Subject-wise Attendance
-                </h3>
-
-                <p>
-                    Attendance details for every subject
-                </p>
-
-
-                <div class="table-wrap">
-
-                    <table>
-
-                        <thead>
-
-                            <tr>
-
-                                <th>#</th>
-
-                                <th>SUBJECT CODE</th>
-
-                                <th>SUBJECT</th>
-
-                                <th>PRESENT</th>
-
-                                <th>ABSENT</th>
-
-                                <th>ATTENDANCE</th>
-
-                                <th>STATUS</th>
-
-                            </tr>
-
-                        </thead>
-
-
-                        <tbody>
-
-                            ${subjectRows}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    `;
+function studentCard(student) {
+  const result = calculateAttendance(student.roll);
+  const warning = result.total > 0 && result.pct < 75;
+  return `<div class="panel student-result-card">
+    <div class="student-profile"><div><h3>${esc(student.name)}</h3><p>${esc(student.roll)} • ${esc(student.course)}</p></div>
+    <div class="attendance-circle">${result.pct}%</div></div>
+    <div class="${warning ? "warning-box" : "good-box"}">${warning
+      ? "⚠ Warning: Your attendance is below 75%. Please attend classes regularly."
+      : "✓ Good attendance. Keep attending classes regularly."}</div>
+    ${stats([
+      ["✓", "Present", result.present, "green"],
+      ["✕", "Absent", result.absent, "red"],
+      ["▣", "Total Classes", result.total, "blue"],
+      ["%", "Attendance", `${result.pct}%`, "orange"]
+    ])}
+  </div>`;
 }
 
 function renderProfile() {
-
-    if (!$("profileContent")) return;
-
-    const s =
-        role === "student"
-            ? data.students.find(
-                x => x.roll === studentRoll
-            )
-            : null;
-
-    $("profileContent").innerHTML =
-        role === "student" && s
-            ? `
-                <div class="profile-line">
-                    <span>Name</span>
-                    <b>${esc(s.name)}</b>
-                </div>
-
-                <div class="profile-line">
-                    <span>Roll No.</span>
-                    <b>${esc(s.roll)}</b>
-                </div>
-
-                <div class="profile-line">
-                    <span>Course</span>
-                    <b>${esc(s.course)}</b>
-                </div>
-
-                <div class="profile-line">
-                    <span>Email</span>
-                    <b>${esc(s.email)}</b>
-                </div>
-            `
-            : `
-                <div class="profile-line">
-                    <span>Role</span>
-                    <b>Teacher</b>
-                </div>
-
-                <div class="profile-line">
-                    <span>Teacher ID</span>
-                    <b>T001</b>
-                </div>
-
-                <div class="profile-line">
-                    <span>Access</span>
-                    <b>Attendance Management</b>
-                </div>
-            `;
+  const student = role === "student" ? data.students.find((item) => item.roll === studentRoll) : null;
+  if (!$("profileContent")) return;
+  $("profileContent").innerHTML = student
+    ? `<div class="profile-line"><span>Name</span><b>${esc(student.name)}</b></div>
+       <div class="profile-line"><span>Roll No.</span><b>${esc(student.roll)}</b></div>
+       <div class="profile-line"><span>Course</span><b>${esc(student.course)}</b></div>
+       <div class="profile-line"><span>Email</span><b>${esc(student.email)}</b></div>`
+    : '<div class="profile-line"><span>Role</span><b>Teacher</b></div><div class="profile-line"><span>Teacher ID</span><b>T001</b></div><div class="profile-line"><span>Access</span><b>Attendance Management</b></div>';
 }
 
-function delStudent(i) {
+function addStudent() {
+  const roll = $("studentRoll").value.trim();
+  const name = $("studentName").value.trim();
+  const course = $("studentCourse").value.trim();
+  const email = $("studentEmail").value.trim().toLowerCase();
 
-    if (confirm("Delete this student?")) {
+  if (!roll || !name || !course || !email) return toast("Fill all student fields", "error");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Enter a valid email address", "error");
+  if (data.students.some((student) => student.roll.toLowerCase() === roll.toLowerCase())) {
+    return toast("Roll number already exists", "error");
+  }
 
-        data.students.splice(i, 1);
-
-        save();
-        renderStudents();
-        renderDashboard();
-
-        toast("Student deleted");
-    }
+  data.students.push({ roll, name, course, email });
+  save();
+  $("studentForm").classList.add("hidden");
+  ["studentRoll", "studentName", "studentCourse", "studentEmail"].forEach((id) => { $(id).value = ""; });
+  renderStudents();
+  renderAttendance();
+  renderDashboard();
+  renderReports();
+  toast("Student added");
 }
 
-function delSub(i) {
-
-    if (confirm("Delete this subject?")) {
-
-        data.subjects.splice(i, 1);
-
-        save();
-        renderSubjects();
-        renderAttendance();
-
-        toast("Subject deleted");
-    }
+function addSubject() {
+  const code = $("subjectCode").value.trim();
+  const name = $("subjectName").value.trim();
+  if (!code || !name) return toast("Fill subject fields", "error");
+  if (data.subjects.some((subject) => subject.code.toLowerCase() === code.toLowerCase())) {
+    return toast("Subject code already exists", "error");
+  }
+  data.subjects.push({ code, name });
+  save();
+  $("subjectCode").value = "";
+  $("subjectName").value = "";
+  renderSubjects();
+  renderAttendance();
+  renderReports();
+  renderDashboard();
+  toast("Subject added");
 }
 
-if ($("addStudentBtn")) {
-
-    $("addStudentBtn").onclick = () => {
-        $("studentForm")?.classList.toggle("hidden");
-    };
+function csvEscape(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
-if ($("saveStudent")) {
-
-    $("saveStudent").onclick = () => {
-
-        const r = $("studentRoll").value.trim();
-        const n = $("studentName").value.trim();
-        const c = $("studentCourse").value.trim();
-        const e = $("studentEmail").value.trim();
-
-        if (!r || !n || !c || !e) {
-            return toast(
-                "Fill all student fields",
-                "error"
-            );
-        }
-
-        if (data.students.some(x => x.roll === r)) {
-            return toast(
-                "Roll number already exists",
-                "error"
-            );
-        }
-
-        data.students.push({
-            roll: r,
-            name: n,
-            course: c,
-            email: e
-        });
-
-        save();
-
-        $("studentForm")?.classList.add("hidden");
-
-        [
-            "studentRoll",
-            "studentName",
-            "studentCourse",
-            "studentEmail"
-        ].forEach(i => {
-            if ($(i)) $(i).value = "";
-        });
-
-        renderStudents();
-        renderDashboard();
-
-        toast("Student added");
-    };
+function exportReport() {
+  const subjectCode = $("reportSubject")?.value || "";
+  const rows = [["Roll No", "Name", "Course", "Present", "Absent", "Attendance", "Status"]];
+  data.students.forEach((student) => {
+    const result = calculateAttendance(student.roll, subjectCode);
+    const status = result.total === 0 ? "No data" : result.pct < 75 ? "Short Attendance" : "Good";
+    rows.push([student.roll, student.name, student.course, result.present, result.absent, `${result.pct}%`, status]);
+  });
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `attendance_report_${localDate()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast("Attendance report exported");
 }
 
-if ($("addSubject")) {
-
-    $("addSubject").onclick = () => {
-
-        const c = $("subjectCode").value.trim();
-        const n = $("subjectName").value.trim();
-
-        if (!c || !n) {
-            return toast(
-                "Fill subject fields",
-                "error"
-            );
-        }
-
-        data.subjects.push({
-            code: c,
-            name: n
-        });
-
-        save();
-
-        $("subjectCode").value = "";
-        $("subjectName").value = "";
-
-        renderSubjects();
-
-        toast("Subject added");
-    };
-}
-
-if ($("exportBtn")) {
-
-    $("exportBtn").onclick = () => {
-
-        let csv =
-            "Roll No,Name,Course,Present,Absent,Attendance,Status\n";
-
-        data.students.forEach(s => {
-
-            const x = calc(s.roll);
-
-            csv +=
-                `"${s.roll}","${s.name}","${s.course}",` +
-                `${x.present},${x.absent},${x.pct}%,"` +
-                `${x.pct < 75
-                    ? "Short Attendance"
-                    : "Good"}"\n`;
-        });
-
-        const a = document.createElement("a");
-
-        a.href = URL.createObjectURL(
-            new Blob([csv], {
-                type: "text/csv"
-            })
-        );
-
-        a.download = "attendance_report.csv";
-        a.click();
-
-        URL.revokeObjectURL(a.href);
-    };
-}
-
-if ($("resetData")) {
-
-    $("resetData").onclick = () => {
-
-        if (confirm("Reset all demo data?")) {
-            localStorage.removeItem(KEY);
-            location.reload();
-        }
-    };
-}
-
-if ($("compactToggle")) {
-
-    $("compactToggle").onchange = e => {
-        document.body.classList.toggle(
-            "compact",
-            e.target.checked
-        );
-    };
-}
-
-if ($("headerDate")) {
-    $("headerDate").textContent = dateText();
-}
-
-selectedAttendanceDate = today();
-
-if ($("attendanceDate")) {
-    $("attendanceDate").value =
-        selectedAttendanceDate;
-}
-
-if ($("attendanceDateText")) {
-    $("attendanceDateText").textContent =
-        dateText();
-}
-
-if ($("clock")) {
-
-    setInterval(() => {
-
-        $("clock").textContent =
-            new Date().toLocaleTimeString(
-                "en-GB",
-                { hour12: false }
-            );
-
-    }, 1000);
-
-    $("clock").textContent =
-        new Date().toLocaleTimeString(
-            "en-GB",
-            { hour12: false }
-        );
-}
-
-nav();
-setupRole();
-renderDashboard();
-renderSubjects();
-
-if (role === "teacher") {
-    show("attendance");
+function setupEvents() {
+  $("subjectSelect")?.addEventListener("change", () => {
     renderAttendance();
-} else {
+    renderDashboard();
+  });
+  $("attendanceDate")?.addEventListener("change", () => {
+    selectedAttendanceDate = attendanceDate();
+    if ($("saveMessage")) $("saveMessage").textContent = "";
+    renderAttendance();
+    renderDashboard();
+  });
+  $("allPresent")?.addEventListener("click", () => bulk("present"));
+  $("allAbsent")?.addEventListener("click", () => bulk("absent"));
+  $("saveAttendance")?.addEventListener("click", () => {
+    save();
+    $("saveMessage").textContent = `✓ Attendance saved for ${dateText(attendanceDate())}`;
+    toast(`Attendance saved for ${dateText(attendanceDate())}`);
+    window.setTimeout(() => { if ($("saveMessage")) $("saveMessage").textContent = ""; }, 2500);
+  });
+  $("addStudentBtn")?.addEventListener("click", () => $("studentForm")?.classList.toggle("hidden"));
+  $("saveStudent")?.addEventListener("click", addStudent);
+  $("addSubject")?.addEventListener("click", addSubject);
+  $("reportSearch")?.addEventListener("input", renderReports);
+  $("reportSubject")?.addEventListener("change", renderReports);
+  $("exportBtn")?.addEventListener("click", exportReport);
+  $("resetData")?.addEventListener("click", () => {
+    if (!window.confirm("Reset all demo data?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+  });
+  $("compactToggle")?.addEventListener("change", (event) => {
+    document.body.classList.toggle("compact", event.target.checked);
+  });
+  $("notifyToggle")?.addEventListener("change", () => {
+    if ($("notifyToggle").checked) toast("Notifications enabled");
+  });
+}
+
+function updateClock() {
+  if ($("clock")) $("clock").textContent = new Date().toLocaleTimeString("en-GB", { hour12: false });
+}
+
+function init() {
+  $("headerDate").textContent = dateText();
+  if ($("attendanceDate")) $("attendanceDate").value = selectedAttendanceDate;
+  if ($("attendanceDateText")) $("attendanceDateText").textContent = dateText(selectedAttendanceDate);
+
+  setupNavigation();
+  setupRole();
+  setupEvents();
+  renderSubjects();
+  renderStudents();
+  renderAttendance();
+  renderDashboard();
+  renderReports();
+  renderProfile();
+  updateClock();
+  window.setInterval(updateClock, 1000);
+
+  if (role === "student") {
     show("dashboard");
     renderStudentView();
+  } else {
+    show("attendance");
+  }
 }
 
-renderReports();
-renderProfile();
-
-// ================= DARK MODE =================
-
-const darkModeBtn = document.getElementById("darkModeBtn");
-
-if (darkModeBtn) {
-    // Load saved theme
-    const savedTheme = localStorage.getItem("theme");
-
-    if (savedTheme === "dark") {
-        document.body.classList.add("dark-mode");
-        darkModeBtn.textContent = "☀️";
-    }
-
-    darkModeBtn.onclick = () => {
-        document.body.classList.toggle("dark-mode");
-
-        if (document.body.classList.contains("dark-mode")) {
-            localStorage.setItem("theme", "dark");
-            darkModeBtn.textContent = "☀️";
-        } else {
-            localStorage.setItem("theme", "light");
-            darkModeBtn.textContent = "🌙";
-        }
-    };
-}
-
+document.addEventListener("DOMContentLoaded", init);
